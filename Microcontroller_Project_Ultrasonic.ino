@@ -1,15 +1,14 @@
 #include <Arduino.h>
 #include <NewPing.h>
-#include <SoftwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
 
 #define MAX_DISTANCE 400
 
-const int trigPin1 = 4;
-const int echoPin1 = 5;
+const int trigPin1 = 5;
+const int echoPin1 = 34;
 const int trigPin2 = 12;
 const int echoPin2 = 13;
-const int trigPin3 = 34;
+const int trigPin3 = 23;
 const int echoPin3 = 35;
 const int trigPin4 = 2;
 const int echoPin4 = 15;
@@ -18,11 +17,12 @@ const int echoPin4 = 15;
 const int motorPinRight  = 32;
 const int motorPinCenter = 33;
 const int motorPinLeft   = 25;
-const int motorPinBottom = 26;
+const int motorPinBelow = 26;
 
 int minLeftDistance   = 100;
 int minCenterDistance = 100;
 int minRightDistance  = 100;
+int minBelowDistance  = 100;
 
 static unsigned long timer = millis();
 
@@ -31,8 +31,9 @@ int waitTime = 3500;
 NewPing sonarLeft(trigPin1, echoPin1 ,MAX_DISTANCE);
 NewPing sonarCenter(trigPin2, echoPin2 ,MAX_DISTANCE);
 NewPing sonarRight(trigPin3, echoPin3 ,MAX_DISTANCE);
+NewPing sonarBelow(trigPin4, echoPin4 ,MAX_DISTANCE);
 
-HardwareSerial mp3HardwareSerial(1); // SoftwareSerial is not working
+HardwareSerial mp3SoftwareSerial(1); // SoftwareSerial is not working
 DFRobotDFPlayerMini DFPlayer;
 
 void printDetail(uint8_t type, int value){
@@ -123,9 +124,19 @@ void rightAlert(int distance) {
   }
 }
 
+void belowAlert(int distance) {
+  
+  if (millis() - timer > waitTime) {
+    timer = millis();
+    DFPlayer.playLargeFolder(04, distance+1);
+  } 
+  if (DFPlayer.available()) {
+    printDetail(DFPlayer.readType(), DFPlayer.read()); //Print the detail message from DFPlayer
+  }
+}
 void setupDFPlayer() {
 
-  mp3HardwareSerial.begin(9600, SERIAL_8N1, 16, 17);
+  mp3SoftwareSerial.begin(9600, SERIAL_8N1, 16, 17);
   Serial.println();
   Serial.println(F("Blind assistancs smart glass..."));
   Serial.println(F("Initializing DFPlayer ... (May take 3~5 seconds)"));
@@ -137,6 +148,20 @@ void setupDFPlayer() {
     while(true);
   }
   Serial.println(F("DFPlayer Mini online."));
+  Serial.println(F("readState--------------------"));
+  Serial.println(DFPlayer.readState()); //read mp3 state
+  Serial.println(F("readVolume--------------------"));
+  Serial.println(DFPlayer.readVolume()); //read current volume
+  //Serial.println(F("readEQ--------------------"));
+  //Serial.println(myDFPlayer.readEQ()); //read EQ setting
+  Serial.println(F("readFileCounts--------------------"));
+  Serial.println(DFPlayer.readFileCounts()); //read all file counts in SD card
+  Serial.println(F("readCurrentFileNumber--------------------"));
+  Serial.println(DFPlayer.readCurrentFileNumber()); //read current play file number
+  Serial.println(F("readFileCountsInFolder--------------------"));
+  Serial.println(DFPlayer.readFileCountsInFolder(3)); //read fill counts in folder SD:/03
+  Serial.println(F("--------------------"));
+
   
   DFPlayer.setTimeOut(500); //Set serial communictaion time out 500ms
   DFPlayer.volume(29);  //Set volume value (0~30)
@@ -154,6 +179,7 @@ void loop() {
   int leftDistance  = sonarLeft.ping_cm();
   int centerDistance  = sonarCenter.ping_cm();
   int rightDistance   = sonarRight.ping_cm();
+  int belowDistance   = sonarBelow.ping_cm();
 
  // For debugging
 //   Serial.print("Left: ");
@@ -200,6 +226,19 @@ void loop() {
   }
   else {
     analogWrite(motorPinRight, 0);
+  }
+  
+  if(belowDistance < minRightDistance && belowDistance > 1) {
+
+    Serial.print("Obstacle ");
+    Serial.print(belowDistance);
+    Serial.println(" watch out there is an obstacle below!! ");
+
+    belowAlert(belowDistance);
+    analogWrite(motorPinBelow, 512);
+  }
+  else {
+    analogWrite(motorPinBelow, 0);
   }
 
 }
